@@ -1,0 +1,42 @@
+# Prerequisites
+lab*/zad*/*.d
+
+# Compiled Object files
+lab*/zad*/*.slo
+lab*/zad*/*.lo
+lab*/zad*/*.o
+lab*/zad*/*.obj
+
+# Precompiled Headers
+lab*/zad*/*.gch
+lab*/zad*/*.pch
+
+# Linker files
+lab*/zad*/*.ilk
+
+# Debugger Files
+lab*/zad*/*.pdb
+
+# Compiled Dynamic libraries
+lab*/zad*/*.so
+lab*/zad*/*.dylib
+lab*/zad*/*.dll
+
+# Fortran module files
+lab*/zad*/*.mod
+lab*/zad*/*.smod
+
+# Compiled Static libraries
+lab*/zad*/*.lai
+lab*/zad*/*.la
+lab*/zad*/*.a
+lab*/zad*/*.lib
+
+# Executables
+lab*/zad*/*.exe
+lab*/zad*/*.out
+lab*/zad*/*.app
+lab*/zad*/main
+
+# debug information files
+lab*/zad*/*.dwo

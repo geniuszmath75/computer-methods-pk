@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "Ubuntu",
+            "intelliSenseMode": "linux-gcc-x64",
+            "compilerPath": "/usr/bin/g++",
+            "cStandard": "c17",
+            "includePath": [
+                "/usr/include/c++/13",
+                "/usr/include/x86_64-linux-gnu/c++/13",
+                "/usr/include/c++/13/backward",
+                "/usr/lib/gcc/x86_64-linux-gnu/13/include",
+                "/usr/local/include",
+                "/usr/include/x86_64-linux-gnu",
+                "/usr/include"
+            ]
+        }
+    ],
+    "version": 4
+}
