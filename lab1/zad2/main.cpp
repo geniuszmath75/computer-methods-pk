@@ -5,6 +5,8 @@
 
 #define USE_STABLE_METHOD
 
+static const long double EPSILON = 1.084e-19L;
+
 struct DataPoint
 {
     long double log10x;
@@ -16,26 +18,27 @@ struct DataPoint
 template <typename T>
 T compute_unstable_aproximate_function_result(T x)
 {
-    T numerator = x * x * x;
-    T denominator = 6.0 * (std::sinh(x) - x);
-    return numerator / denominator;
+    T six = static_cast<T>(6);
+    return x * x * x / (six * (std::sinh(x) - x));
 }
 
 template <typename T>
 T  compute_stable_aproximate_function_result(T x)
 {
-    if(std::abs(x) < 1e-3)
+    T six = static_cast<T>(6);
+    T zero = static_cast<T>(0);
+    T two = static_cast<T>(2);
+    T three = static_cast<T>(3);
+    
+    T term = x * x * x / six;
+    T sum = zero;
+
+    for(int n = 1; n <= 10; ++n)
     {
-        T x2 = x * x;
-        T x4 = x2 * x2;
-        return 1.0 - (x2 / 20.0) + (x4 / 840.0);
+        sum += term;
+        term *= (x * x) / ((two * n + two) * (two * n + three));
     }
-    else
-    {
-        T numerator = x * x * x;
-        T denominator = 6.0 * (std::sinh(x) - x);
-        return numerator / denominator;
-    }
+    return x * x * x / (six * sum);
 }
 
 int main()
@@ -58,7 +61,7 @@ int main()
     }
 
     fout << "====================================================================\n";
-    fout << "log10(x)\tlog(|relative_error|)\trelative_error\tf_exact\tf_approx\n";
+    fout << "log10(x)\tlog10(|relative_error|)\n";
     fout << "====================================================================\n";
 
     std::string line;
@@ -69,22 +72,35 @@ int main()
         DataPoint point;
         if(!(std::istringstream(line) >> point.log10x >> point.x >> point.f_exact)) continue;
 
+        long double f_approx;
+
         #ifdef USE_STABLE_METHOD
-            long double f_approx = compute_stable_aproximate_function_result(point.x);    
+            if(point.x < 0.9L)
+            {
+                f_approx = compute_stable_aproximate_function_result(point.x);    
+            }
+            else
+            {
+                f_approx = compute_unstable_aproximate_function_result(point.x);
+            }
         #else
-            long double f_approx = compute_unstable_aproximate_function_result(point.x);
+            f_approx = compute_unstable_aproximate_function_result(point.x);
         #endif
         
 
         // Calculate relative error
-        long double relativeError = std::abs((f_approx - point.f_exact) / point.f_exact);
+        long double relativeError;
+        if(f_approx == point.f_exact)
+        {
+            relativeError = EPSILON;
+        } else
+        {
+            relativeError = (fabsl(f_approx - point.f_exact) / fabsl(point.f_exact));
+        }
 
         fout << std::fixed << std::setprecision(5) << point.log10x
-             << "\t" << std::scientific << std::setprecision(20)
-             << std::log10(relativeError) << "\t"
-             << relativeError << "\t"
-             << point.f_exact << "\t"
-             << f_approx << "\n"; 
+             << "\t" << std::setprecision(8)
+             << std::log10(relativeError) << "\n";
     }
 
     fin.close();
