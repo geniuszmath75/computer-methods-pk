@@ -40,3 +40,6 @@ lab*/zad*/main
 
 # debug information files
 lab*/zad*/*.dwo
+
+# .vscode settings
+lab*/zad*/.vscode/*
