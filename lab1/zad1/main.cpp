@@ -22,6 +22,35 @@ T compute_machine_epsilon_experimental()
 }
 
 template<typename T>
+int count_significant_digits(T value)
+{
+    // Convert number to scientific string with high precision
+    std::ostringstream oss;
+    oss << std::scientific << std::setprecision(80) << value;
+    std::string s = oss.str();
+
+    // Separate mantissa from exponent
+    auto pos_e = s.find('e');
+    std::string mantissa = s.substr(0, pos_e);
+
+    // Remove sign and decimal point → keep only digits
+    std::string digits;
+    for (char c : mantissa) {
+        if (std::isdigit(c)) digits.push_back(c);
+    }
+
+    // 1. Remove leading zeros (numbers < 1)
+    while (!digits.empty() && digits.front() == '0')
+        digits.erase(digits.begin());
+
+    // 2. Remove trailing zeros introduced by fixed precision
+    while (!digits.empty() && digits.back() == '0')
+        digits.pop_back();
+
+    return digits.size();
+}
+
+template<typename T>
 void analyze_type(const std::string &label)
 {
     std::cout << "----- " << label << " -----\n";
@@ -33,10 +62,10 @@ void analyze_type(const std::string &label)
     int mantissa_bits = -log2(eps_exp);
 
     // decimal digits estimated
-    int decimal_digits_from_eps = -log10(eps_exp);
+    int decimal_digits_from_eps = count_significant_digits(eps_exp);
 
     std::cout << std::scientific << std::setprecision(70);
-    std::cout << "experimental epsilon: " << static_cast<long double>(eps_exp) << "\n";
+    std::cout << "experimental epsilon: " << static_cast<T>(eps_exp) << "\n";
     std::cout << "mantissa bits (experimental, including hidden bit if applicable): " << mantissa_bits << "\n";
     std::cout << "approx. decimal significant digits (from eps): " << decimal_digits_from_eps << "\n";
 }

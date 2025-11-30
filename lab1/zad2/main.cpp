@@ -33,7 +33,7 @@ T  compute_stable_aproximate_function_result(T x)
     T term = x * x * x / six;
     T sum = zero;
 
-    for(int n = 1; n <= 10; ++n)
+    for(int n = 1; n <= 300; ++n)
     {
         sum += term;
         term *= (x * x) / ((two * n + two) * (two * n + three));
