@@ -81,6 +81,83 @@ inline T fd_central2(T (*func)(T), T x, T h)
 }
 
 /*
+ Funkcja obliczająca lokalny doświadczalny rząd dokładności
+ przybliżenia różnicowego.
+
+ Definicja:
+ p ≈ log(e₂ / e₁) / log(h₂ / h₁)
+
+ gdzie:
+ e₁, e₂ – błędy bezwzględne dla kolejnych kroków siatki,
+ h₁, h₂ – odpowiadające im kroki siatki.
+
+ W obszarze dominacji błędu obcięcia wartość p powinna
+ dążyć do rzędu teoretycznego metody.
+*/
+template<typename T>
+T experimental_order(T e1, T e2, T h1, T h2)
+{
+    return std::log10(e2 / e1) / std::log10(h2 / h1);
+}
+
+/*
+ Funkcja obliczająca uśredniony doświadczalny rząd dokładności
+ na podstawie wektora lokalnych rzędów p_i.
+
+ Uśrednianie wykonywane jest na wybranym przedziale indeksów,
+ odpowiadającym liniowemu fragmentowi wykresu log|e(h)| vs log(h),
+ w którym nie występuje jeszcze wpływ błędów maszynowych.
+
+ Wartości NaN i Inf są pomijane.
+*/
+template<typename T>
+T average_experimental_order(
+    const std::vector<T>& orders,
+    size_t begin,
+    size_t end
+)
+{
+    T sum = static_cast<T>(0);
+    size_t count = 0;
+
+    for (size_t i = begin; i < end && i < orders.size(); ++i)
+    {
+        if(std::isfinite(orders[i]))
+        {
+            sum += orders[i];
+            ++count;
+        }
+    }
+
+    if(count == 0)
+    {
+        return std::numeric_limits<T>::quiet_NaN();
+    }
+
+    return sum / static_cast<T>(count);
+}
+
+/*
+ Funkcja wyszukująca indeks minimalnej wartości błędu.
+
+ Minimalny błąd bezwzględny odpowiada granicy pomiędzy:
+ - obszarem dominacji błędu obcięcia (dla większych h),
+ - obszarem dominacji błędu zaokrągleń (dla bardzo małych h).
+
+ W praktyce jest to punkt, od którego dalsze zmniejszanie
+ kroku siatki nie poprawia dokładności obliczeń.
+*/
+template<typename T>
+size_t find_min_error_index(const std::vector<T>& errors)
+{
+    size_t idx = 0;
+    for (size_t i = 1; i < errors.size(); ++i)
+        if (errors[i] < errors[idx])
+            idx = i;
+    return idx;
+}
+
+/*
  Funkcja zapisująca dane do pliku.
  Format pliku:
  log10(h) log10(e_f2) log10(e_f3) log10(e_c2) log10(e_b2) log10(e_b3)
@@ -119,13 +196,20 @@ void save_to_file(
 }
 
 /*
- Funkcja wykonuje eksperyment numeryczny dla danego typu T:
- - oblicza pochodne w trzech punktach: x0, xc, xn
- - liczy błędy dla różnych metod różnicowych
- - wypisuje wyniki
- - zapisuje dane do pliku
+ Funkcja run_for_type realizuje pełny eksperyment numeryczny
+ dla zadanego typu zmiennoprzecinkowego (double lub long double).
 
- label – label typu (np. "double")
+ Dla kolejnych kroków siatki h:
+ - oblicza przybliżenia pochodnej w punktach:
+   * x0 = 0        (początek przedziału),
+   * xc = π/4      (środek przedziału),
+   * xn = π/2      (koniec przedziału),
+ - wyznacza błędy bezwzględne,
+ - zapisuje wartości log10(h) oraz log10(|e|),
+ - oblicza lokalne rzędy dokładności,
+ - wyznacza uśrednione rzędy doświadczalne,
+ - identyfikuje wpływ błędów maszynowych,
+ - zapisuje dane do pliku do dalszej analizy graficznej.
 */
 template <typename T>
 void run_for_type(const std::string &label)
@@ -139,14 +223,7 @@ void run_for_type(const std::string &label)
 
     // wektory do zapisu do pliku
     std::vector<T> logh, ef2, ef3, ec2, eb2, eb3;
-
-    std::cout << std::setw(13) << "h"
-              << std::setw(14) << "|e_f2(x0)|"
-              << std::setw(14) << "|e_f3(x0)|"
-              << std::setw(14) << "|e_c2(xc)|"
-              << std::setw(14) << "|e_b2(xn)|"
-              << std::setw(14) << "|e_b3(xn)|"
-              << "\n";
+    std::vector<T> p_f2, p_f3, p_c2, p_b2, p_b3;
 
     for (int k = 0; k <= 50; ++k)
     {
@@ -184,15 +261,104 @@ void run_for_type(const std::string &label)
         eb2.push_back(safe_log10(e_b2_xn));
         eb3.push_back(safe_log10(e_b3_xn));
 
-        std::cout << std::scientific << std::setprecision(6);
+        /*
+            Obliczenie lokalnych rzędów dokładności następuje
+            po zgromadzeniu co najmniej dwóch wartości błędu.
 
-        std::cout << std::log10(static_cast<T>(h)) << " "
-                  << safe_log10(static_cast<T>(e_f2_x0)) << " "
-                  << safe_log10(static_cast<T>(e_f3_x0)) << " "
-                  << safe_log10(static_cast<T>(e_c2_xc)) << " "
-                  << safe_log10(static_cast<T>(e_b2_xn)) << " "
-                  << safe_log10(static_cast<T>(e_b3_xn)) << "\n";
+            Każdy rząd p_i odpowiada nachyleniu krzywej
+            log|e(h)| względem log(h) pomiędzy dwoma kolejnymi krokami.
+        */
+        if(logh.size() >= 2)
+        {
+            size_t i = logh.size() - 1;
+            T temp_accuracy_order = static_cast<T>(0);
+
+            temp_accuracy_order = experimental_order(
+                std::pow(static_cast<T>(10), ef2[i - 1]),
+                std::pow(static_cast<T>(10), ef2[i]),
+                std::pow(static_cast<T>(10), logh[i - 1]),
+                std::pow(static_cast<T>(10), logh[i]));
+            p_f2.push_back(temp_accuracy_order);
+
+            temp_accuracy_order = experimental_order(
+                std::pow(static_cast<T>(10), ef3[i - 1]),
+                std::pow(static_cast<T>(10), ef3[i]),
+                std::pow(static_cast<T>(10), logh[i - 1]),
+                std::pow(static_cast<T>(10), logh[i]));
+            p_f3.push_back(temp_accuracy_order);
+
+            temp_accuracy_order = experimental_order(
+                std::pow(static_cast<T>(10), ec2[i - 1]),
+                std::pow(static_cast<T>(10), ec2[i]),
+                std::pow(static_cast<T>(10), logh[i - 1]),
+                std::pow(static_cast<T>(10), logh[i]));
+            p_c2.push_back(temp_accuracy_order);
+
+            temp_accuracy_order = experimental_order(
+                std::pow(static_cast<T>(10), eb2[i - 1]),
+                std::pow(static_cast<T>(10), eb2[i]),
+                std::pow(static_cast<T>(10), logh[i - 1]),
+                std::pow(static_cast<T>(10), logh[i]));
+            p_b2.push_back(temp_accuracy_order);
+
+            temp_accuracy_order = experimental_order(
+                std::pow(static_cast<T>(10), eb3[i - 1]),
+                std::pow(static_cast<T>(10), eb3[i]),
+                std::pow(static_cast<T>(10), logh[i - 1]),
+                std::pow(static_cast<T>(10), logh[i]));
+            p_b3.push_back(temp_accuracy_order);
+        }
     }
+
+    std::cout << std::fixed << std::setprecision(10);
+    std::cout << "\n" << "=========================================\n"
+            << "RZĘDY DOKŁADNOŚCI PRZYBLIŻEŃ RÓŹNICOWYCH\n"
+            << "=========================================\n";
+
+    std::cout << "=== Forward 2 ===\n"
+            << "Rząd teoretyczny: O(h)\n"
+            << "Rząd doświadczalny: "
+            << average_experimental_order(p_f2, 5, 20) << "\n";
+    std::cout << "=== Forward 3 ===\n"
+            << "Rząd teoretyczny: O(h^2)\n"
+            << "Rząd doświadczalny: "
+            << average_experimental_order(p_f3, 5, 20) << "\n";
+    std::cout << "=== Central 2 ===\n"
+            << "Rząd teoretyczny: O(h^2)\n"
+            << "Rząd doświadczalny: "
+            << average_experimental_order(p_c2, 5, 20) << "\n";
+    std::cout << "=== Backward 2 ===\n"
+            << "Rząd teoretyczny: O(h)\n"
+            << "Rząd doświadczalny: "
+            << average_experimental_order(p_b2, 5, 20) << "\n";
+    std::cout << "=== Backward 3 ===\n"
+            << "Rząd teoretyczny: O(h^2)\n"
+            << "Rząd doświadczalny: "
+            << average_experimental_order(p_b3, 5, 20) << "\n";
+
+    std::cout << std::scientific << std::setprecision(6);
+    
+    size_t idx_min_f2 = find_min_error_index(ef2);
+    size_t idx_min_f3 = find_min_error_index(ef3);
+    size_t idx_min_c2 = find_min_error_index(ec2);
+    size_t idx_min_b2 = find_min_error_index(eb2);
+    size_t idx_min_b3 = find_min_error_index(eb3);
+
+    std::cout << "\n" << "=========================================\n"
+            << "WPŁYW BŁĘDÓW MASZYNOWYCH\n"
+            << "=========================================\n";
+
+    std::cout << std::fixed << std::setprecision(6);
+    std::cout << "Minimalny bład (forward 2) dla h ~ "
+          << logh[idx_min_f2] << "\n";
+    std::cout << "Minimalny bład (forward 3) dla h ~ "
+          << logh[idx_min_f3] << "\n";
+    std::cout << "Minimalny bład (central 2) dla h ~ "
+          << logh[idx_min_c2] << "\n";
+    std::cout << "Minimalny bład (backward 2) dla h ~ "
+          << logh[idx_min_b2] << "\n";
+    std::cout << "Minimalny bład (backward 3) dla h ~ "
+          << logh[idx_min_b3] << "\n";
     
     // zapisz wyniki do pliku CSV
     save_to_file(
