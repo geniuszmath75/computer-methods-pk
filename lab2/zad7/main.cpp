@@ -7,6 +7,7 @@ using namespace std;
 
 // Stała określająca rozmiar układu równań (5 równań, 5 niewiadomych)
 const int N = 5;
+const int ITERATIONS = 50; // Max. liczba iteracji
 
 
 // Wygodne aliasy na wektor i macierz
@@ -41,12 +42,12 @@ Vec compute_residual(const Matrix &A, const Vec &x, const Vec &b)
 // ============================================================================
 void print_iteration(int iteration, const Vec &x, const Vec &err, const Vec &res)
 {
-    cout << "Iteration " << setw(3) << iteration << ":\n" << "x = [";
+    cout << "Iteration " << setw(3) << fixed << setprecision(6) << iteration << ":\n" << "x = [";
     for (int i = 0; i < N; ++i)
     {
         cout << setw(10) << x[i] << (i + 1 < N ? ", " : " ],\n");
     }
-    cout << "err = [";
+    cout << "err = [" << setprecision(6);
     for (int i = 0; i < N; ++i)
     {
         cout << setw(10) << err[i] << (i + 1 < N ? ", " : " ],\n");
@@ -125,7 +126,7 @@ void jacobi_method(const Matrix &A, const Vec &b, Vec x0, const Vec &tol_x, cons
 
         // przygotowanie do następnej iteracji: x_old = x_new
         x_old = x_new;
-    } while (!is_converged(err, tol_x, res, tol_r));    // sprawdzamy warunek stopu
+    } while (!is_converged(err, tol_x, res, tol_r) && iteration < ITERATIONS);    // sprawdzamy warunek stopu
     cout << "Iteration number: " << iteration << "\n\n";
 }
 
@@ -176,7 +177,7 @@ void gauss_seidel_method(const Matrix &A, const Vec &b, Vec x0, const Vec &tol_x
         res = compute_residual(A, x_new, b);
         
         print_iteration(iteration, x_new, err, res);
-    } while (!is_converged(err, tol_x, res, tol_r));
+    } while (!is_converged(err, tol_x, res, tol_r) && iteration < ITERATIONS);
     cout << "Iteration number: " << iteration << "\n\n";
 }
 
@@ -232,7 +233,7 @@ void sor_method(const Matrix &A, const Vec &b, Vec x0, double omega, const Vec &
         
         print_iteration(iteration, x_new, err, res);
 
-    } while (!is_converged(err, tol_x, res, tol_r));
+    } while (!is_converged(err, tol_x, res, tol_r) && iteration < ITERATIONS);
     cout << "Iteration number: " << iteration << "\n\n";
 }
 
